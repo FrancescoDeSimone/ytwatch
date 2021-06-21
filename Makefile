@@ -1,7 +1,7 @@
 CC=g++
-FLAG= -lcurl -lptread
+FLAG= -lcurl -lpthread
 
 all: ytwatch
 
 ytwatch:
-	$(CC) main.cpp $(FLAG) -Ofast 
+	$(CC) $(FLAG) -Ofast main.cpp -o ytwatch

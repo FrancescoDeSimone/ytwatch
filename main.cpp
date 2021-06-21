@@ -157,9 +157,6 @@ int main(int argc, char *argv[]) {
   auto options =
       parsing_arguments(argc, std::vector<std::string>(argv + 1, argv + argc));
 
-  for (auto [key, value] : options)
-    std::cout << key << value << std::endl;
-
   std::ifstream subscription_file(options["file"]);
   std::string subscription((std::istreambuf_iterator<char>(subscription_file)),
                            std::istreambuf_iterator<char>());
