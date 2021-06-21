@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <ostream>
 #include <regex>
 #include <string>
@@ -21,7 +22,20 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb,
   return size * nmemb;
 }
 
-std::string download_multiplexing(std::vector<std::string> to_download) {
+std::map<std::string, std::tuple<std::string, std::string, std::string>>
+extract_video(std::string &s, std::string &&regex) {
+  std::map<std::string, std::tuple<std::string, std::string, std::string>>
+      results;
+  std::smatch m;
+  std::regex e(regex);
+  while (std::regex_search(s, m, e)) {
+    results[m[4]] = std::make_tuple(m.str(2), m.str(1), m.str(3));
+    s = m.suffix().str();
+  }
+  return results;
+}
+
+auto download_multiplexing(std::vector<std::string> to_download) {
   std::string readBuffer;
   CURLM *multi_handle = curl_multi_init();
   curl_multi_setopt(multi_handle, CURLMOPT_MAX_HOST_CONNECTIONS, (long)1L);
@@ -43,8 +57,15 @@ std::string download_multiplexing(std::vector<std::string> to_download) {
   for (CURL *e : easy)
     curl_easy_cleanup(e);
   curl_multi_cleanup(multi_handle);
-  return readBuffer;
+  return extract_video(
+      readBuffer,
+      "<entry>(?:.|\n)*?<title>(.*)?<(?:.|\n)*?<link rel=\"alternate\" "
+      "href=\"(.*)?\"(?:.|\n)*?<name>(.*)?<(?:.|\n)*?<published>(.*)?<(?:.|\n)*"
+      "?<\/entry>");
 }
+
+using video_t =
+    std::map<std::string, std::tuple<std::string, std::string, std::string>>;
 
 template <typename T>
 std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
@@ -62,38 +83,21 @@ std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
   return chunks;
 }
 
-std::map<std::string, std::tuple<std::string, std::string, std::string>>
-extract_video(std::string &s, std::string &&regex) {
-  std::map<std::string, std::tuple<std::string, std::string, std::string>>
-      results;
-  std::smatch m;
-  std::regex e(regex);
-  while (std::regex_search(s, m, e)) {
-    results[m[4]] = std::make_tuple(m.str(2), m.str(1), m.str(3));
-    s = m.suffix().str();
-  }
-  return results;
-}
-
-std::map<std::string, std::tuple<std::string, std::string, std::string>>
-parallel_extraction(std::vector<std::string> channels) {
+video_t parallel_extraction(std::vector<std::string> channels) {
 
   unsigned int nthreads = std::thread::hardware_concurrency();
 
-  std::vector<std::future<std::string>> res;
+  std::vector<std::future<video_t>> res;
   for (auto sub_channel : split<std::string>(channels, nthreads))
     res.push_back(std::async(download_multiplexing, sub_channel));
 
-  std::string all_sub;
-  for (int i = 0; i < res.size(); i++)
-    all_sub += res[i].get();
+  video_t all_sub;
+  for (int i = 0; i < res.size(); i++) {
+    video_t v = res[i].get();
+    all_sub.insert(v.begin(), v.end());
+  }
 
-  return extract_video(
-      all_sub,
-      "<entry>(?:.|\n)*?<title>(.*)?<(?:.|\n)*?<link rel=\"alternate\" "
-      "href=\"(.*)?\"(?:.|\n)*?<name>(.*)?<(?:.|\n)*?<published>(.*)?<(?:.|\n)*"
-      "?<\/entry>");
-
+  return all_sub;
   // "<name>(.*?)<(?:.|\n)*?<updated>(.*?)<(?:.|\n)*?<media:"
   // "title>(.*?)<(?:.|\n)*?<media:content url=\"(.*?)\"");
 }
