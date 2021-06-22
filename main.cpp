@@ -48,6 +48,7 @@ extract_video(std::string &s, std::string r) {
 
 auto download_multiplexing(std::vector<std::string> to_download) {
   std::string readBuffer;
+  readBuffer.reserve(1048576); // reserve 1 MB
   CURLM *multi_handle = curl_multi_init();
   curl_multi_setopt(multi_handle, CURLMOPT_MAX_HOST_CONNECTIONS, (long)1L);
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING,
