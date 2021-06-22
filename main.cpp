@@ -16,23 +16,34 @@
 #include <unordered_map>
 #include <vector>
 
+using video_t =
+    std::map<std::string, std::tuple<std::string, std::string, std::string>>;
+
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb,
                             void *userp) {
   ((std::string *)userp)->append((char *)contents, size * nmemb);
   return size * nmemb;
 }
 
-std::map<std::string, std::tuple<std::string, std::string, std::string>>
-extract_video(std::string &s, std::string &&regex) {
-  std::map<std::string, std::tuple<std::string, std::string, std::string>>
-      results;
+
+template <typename T, typename F>
+T regex_matcher(std::string &s, std::string regex, const F& mapper_callback){
+  T result;
   std::smatch m;
   std::regex e(regex);
-  while (std::regex_search(s, m, e)) {
-    results[m[4]] = std::make_tuple(m.str(2), m.str(1), m.str(3));
-    s = m.suffix().str();
-  }
-  return results;
+  while (std::regex_search(s, m, e)) 
+      mapper_callback(result, m);
+  return result;
+}
+
+std::vector<std::string> 
+extract_url(std::string &s, std::string r) {
+ return regex_matcher<std::vector<std::string>>(s,r,[](std::vector<std::string> &x, auto y){ x.push_back("https://www.youtube.com/feeds/videos.xml?channel_id=" + std::string(y[1])); });
+}
+
+video_t
+extract_video(std::string &s, std::string r) {
+  return regex_matcher<video_t>(s,r, [](video_t &x, auto y){ x[y[4]] = std::make_tuple(y[2],y[1],y[3]);});
 }
 
 auto download_multiplexing(std::vector<std::string> to_download) {
@@ -64,8 +75,6 @@ auto download_multiplexing(std::vector<std::string> to_download) {
       "?<\/entry>");
 }
 
-using video_t =
-    std::map<std::string, std::tuple<std::string, std::string, std::string>>;
 
 template <typename T>
 std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
@@ -96,22 +105,7 @@ video_t parallel_extraction(std::vector<std::string> channels) {
     video_t v = res[i].get();
     all_sub.insert(v.begin(), v.end());
   }
-
   return all_sub;
-  // "<name>(.*?)<(?:.|\n)*?<updated>(.*?)<(?:.|\n)*?<media:"
-  // "title>(.*?)<(?:.|\n)*?<media:content url=\"(.*?)\"");
-}
-
-std::vector<std::string> regex_matcher(std::string &s, std::string &&regex) {
-  std::vector<std::string> results;
-  std::smatch m;
-  std::regex e(regex);
-  while (std::regex_search(s, m, e)) {
-    for (int i = 1; i < m.size(); i++)
-      results.push_back(m[i]);
-    s = m.suffix().str();
-  }
-  return results;
 }
 
 template <typename T>
@@ -119,7 +113,7 @@ void pprint_video(T videos,
                   std::unordered_map<std::string, std::string> options) {
   long number = std::stoi(options["number"]);
   number = number > 0 ? number : videos.size();
-  for (auto [key, value] : T(videos.rbegin(), videos.rend())) {
+  for (auto [key, value] : videos) {
     std::cout << key << options["delimiter"];
     std::cout << std::get<0>(value) << options["delimiter"];
     std::cout << std::get<1>(value) << options["delimiter"];
@@ -165,13 +159,8 @@ int main(int argc, char *argv[]) {
   std::string subscription((std::istreambuf_iterator<char>(subscription_file)),
                            std::istreambuf_iterator<char>());
   std::vector<std::string> ids =
-      regex_matcher(subscription, "\"resourceId.*\n.*?\"channelId\".*?\"(.*)\"."
+      extract_url(subscription, "\"resourceId.*\n.*?\"channelId\".*?\"(.*)\"."
                                   "*?\\n.*?\"kind\" : \"youtube#channel\"");
-
-  std::transform(ids.begin(), ids.end(), ids.begin(), [](auto x) {
-    return "https://www.youtube.com/feeds/videos.xml?channel_id=" + x;
-  });
-
   pprint_video(parallel_extraction(ids), options);
 
   return 0;
