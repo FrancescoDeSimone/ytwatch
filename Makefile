@@ -1,10 +1,12 @@
 CC=g++
 FLAG= -lcurl -lpthread
+NAME=ytscraper
 
 all: clean ytwatch
 
-ytwatch:
-	$(CC) $(FLAG) -Ofast main.cpp -o ytwatch
+
+ytwatch: clean
+	$(CC) -std=c++20 $(FLAG) -Ofast main.cpp -o $(NAME)
 
 clean:
-	rm ytwatch
+	rm -f $(NAME)

@@ -1,20 +1,16 @@
-#include <algorithm>
-#include <array>
-#include <curl/curl.h>
 #include <fstream>
-#include <future>
-#include <iostream>
-#include <iterator>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <regex>
-#include <string>
-#include <sys/select.h>
-#include <thread>
-#include <tuple>
-#include <unordered_map>
+#include <curl/curl.h>
 #include <vector>
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <thread>
+#include <future>
+#include <map>
+#include <numeric>
+#include <regex>
+
+using Video_t = std::map<std::string,std::string>;
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb,
                             void *userp) {
@@ -22,20 +18,21 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb,
   return size * nmemb;
 }
 
-std::map<std::string, std::tuple<std::string, std::string, std::string>>
-extract_video(std::string &s, std::string &&regex) {
-  std::map<std::string, std::tuple<std::string, std::string, std::string>>
-      results;
-  std::smatch m;
-  std::regex e(regex);
-  while (std::regex_search(s, m, e)) {
-    results[m[4]] = std::make_tuple(m.str(2), m.str(1), m.str(3));
-    s = m.suffix().str();
-  }
-  return results;
+
+Video_t
+extract_video(std::string &data, std::string&& regex){
+    Video_t results;
+    std::smatch m;
+    std::regex e(regex);
+    while (std::regex_search(data, m, e)) {
+      results[m[2]] = m[1];
+      data = m.suffix().str();
+    }
+    return results;
 }
 
-auto download_multiplexing(std::vector<std::string> to_download) {
+Video_t
+download_multiplexing(std::vector<std::string> to_download) {
   std::string readBuffer;
   CURLM *multi_handle = curl_multi_init();
   curl_multi_setopt(multi_handle, CURLMOPT_MAX_HOST_CONNECTIONS, (long)1L);
@@ -54,18 +51,13 @@ auto download_multiplexing(std::vector<std::string> to_download) {
   while (still_running) {
     curl_multi_perform(multi_handle, &still_running);
   }
-  for (CURL *e : easy)
-    curl_easy_cleanup(e);
+  for (CURL *e : easy) curl_easy_cleanup(e);
   curl_multi_cleanup(multi_handle);
-  return extract_video(
-      readBuffer,
-      "<entry>(?:.|\n)*?<title>(.*)?<(?:.|\n)*?<link rel=\"alternate\" "
-      "href=\"(.*)?\"(?:.|\n)*?<name>(.*)?<(?:.|\n)*?<published>(.*)?<(?:.|\n)*"
-      "?<\/entry>");
-}
 
-using video_t =
-    std::map<std::string, std::tuple<std::string, std::string, std::string>>;
+  return extract_video(
+          readBuffer,
+          "<entry>(?:.|\n)*?<link.*?href=\"(.*)\".*(?:.|\n)*?<published>(.*)<\/");
+}
 
 template <typename T>
 std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
@@ -83,96 +75,47 @@ std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
   return chunks;
 }
 
-video_t parallel_extraction(std::vector<std::string> channels) {
+Video_t
+ordered_subscription_list(std::ifstream& subscription){
+    std::vector<std::string> to_fetch;
+    for(std::string buffer;std::getline(subscription,buffer) && !buffer.empty();){
+        std::stringstream ss(buffer);
+        std::string id;
+        std::getline(ss,id,',');
+        to_fetch.push_back("https://www.youtube.com/feeds/videos.xml?channel_id="+id);
+    }
 
-  unsigned int nthreads = std::thread::hardware_concurrency();
+    #ifdef DEBUG
+        for(auto x:to_fetch)
+            std::cerr<<x<<std::endl;
+    #endif
 
-  std::vector<std::future<video_t>> res;
-  for (auto sub_channel : split<std::string>(channels, nthreads))
-    res.push_back(std::async(download_multiplexing, sub_channel));
+    unsigned int nthreads = std::thread::hardware_concurrency();
+    std::vector<std::future<Video_t>> res;
+    for(auto chunk: split(to_fetch,nthreads))
+        res.push_back(std::async(download_multiplexing,chunk));
 
-  video_t all_sub;
-  for (int i = 0; i < res.size(); i++) {
-    video_t v = res[i].get();
-    all_sub.insert(v.begin(), v.end());
-  }
+    Video_t all_sub;
+    for (int i = 0; i < res.size(); i++) {
+      auto v = res[i].get();
+      all_sub.insert(v.begin(), v.end());
+    }
 
-  return all_sub;
-  // "<name>(.*?)<(?:.|\n)*?<updated>(.*?)<(?:.|\n)*?<media:"
-  // "title>(.*?)<(?:.|\n)*?<media:content url=\"(.*?)\"");
+    return all_sub;
 }
 
-std::vector<std::string> regex_matcher(std::string &s, std::string &&regex) {
-  std::vector<std::string> results;
-  std::smatch m;
-  std::regex e(regex);
-  while (std::regex_search(s, m, e)) {
-    for (int i = 1; i < m.size(); i++)
-      results.push_back(m[i]);
-    s = m.suffix().str();
-  }
-  return results;
-}
 
-template <typename T>
-void pprint_video(T videos,
-                  std::unordered_map<std::string, std::string> options) {
-  long number = std::stoi(options["number"]);
-  number = number > 0 ? number : videos.size();
-  for (auto [key, value] : T(videos.rbegin(), videos.rend())) {
-    std::cout << key << options["delimiter"];
-    std::cout << std::get<0>(value) << options["delimiter"];
-    std::cout << std::get<1>(value) << options["delimiter"];
-    std::cout << std::get<2>(value) << options["delimiter"];
-    std::cout << "\n";
-  }
-}
+int main (int argc, char *argv[])
+{
+    std::ifstream subscription(argv[1]);
 
-void add_argument(std::string name, std::string sign, std::string d,
-                  std::vector<std::string> argv,
-                  std::unordered_map<std::string, std::string> &option) {
-  auto argument = std::find(argv.begin(), argv.end(), sign);
-  option[name] = argument != argv.end() ? *(argument + 1) : d;
-}
+    { //remove header
+        std::string _;
+        std::getline(subscription,_);
+    }
 
-std::unordered_map<std::string, std::string>
-parsing_arguments(int argc, std::vector<std::string> argv) {
-  std::unordered_map<std::string, std::string> options;
-  add_argument("delimiter", "-d", "\t", argv, options);
-  add_argument("number", "-n", "0", argv, options);
-
-  auto file = std::find_if(argv.begin(), argv.end(), [](auto x) {
-    return x.find("json") != std::string::npos;
-  });
-  options["file"] = file != argv.end() ? *file : "";
-
-  if (options["file"] == "" ||
-      std::find(argv.begin(), argv.end(), "-h") != argv.end()) {
-    std::cout << "Usage: " << argv[0]
-              << " [subscription.json]\n\t-d\tdelimiter\n\t-n\tnumber of video";
-    exit(1);
-  }
-
-  return options;
-}
-
-int main(int argc, char *argv[]) {
-
-  auto options =
-      parsing_arguments(argc, std::vector<std::string>(argv + 1, argv + argc));
-
-  std::ifstream subscription_file(options["file"]);
-  std::string subscription((std::istreambuf_iterator<char>(subscription_file)),
-                           std::istreambuf_iterator<char>());
-  std::vector<std::string> ids =
-      regex_matcher(subscription, "\"resourceId.*\n.*?\"channelId\".*?\"(.*)\"."
-                                  "*?\\n.*?\"kind\" : \"youtube#channel\"");
-
-  std::transform(ids.begin(), ids.end(), ids.begin(), [](auto x) {
-    return "https://www.youtube.com/feeds/videos.xml?channel_id=" + x;
-  });
-
-  pprint_video(parallel_extraction(ids), options);
-
-  return 0;
+    for(auto [key,value]:ordered_subscription_list(subscription)){
+        std::cout<<key<<" - "<<value<<"\n";
+    }
+    return 0;
 }
