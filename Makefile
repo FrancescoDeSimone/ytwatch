@@ -1,5 +1,5 @@
-CC=g++
-FLAG= -lcurl -lpthread
+CC=clang++
+FLAG= -lcurl -lpthread -lfmt
 NAME=ytscraper
 
 all: clean ytwatch

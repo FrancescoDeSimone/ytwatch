@@ -1,7 +1,6 @@
 #!/bin/bash
-LIST="$(./ytscraper iscrizioni.csv)"
-DATE="$(echo "${LIST}" | awk '{print $1}' | xargs -I{} date -d {} "+%d/%m/%Y %H:%M:%S")"
-URL="$(echo "${LIST}" | awk '{print $3}')"
-PRETTY_LIST="$(paste <(echo "$DATE") <(echo "$URL"))"
-PRETTY_LIST_FILTER="$(echo "${PRETTY_LIST}" | grep "$(date -d "yesterday" +%d/%m/%Y)")"
-echo "${PRETTY_LIST_FILTER}" | fzf --multi --tac --preview "yt-dlp {3} --skip-download --dump-json  | jq .fulltitle,.channel" | awk '{print $3}' |xargs -ro devour mpv
+LIST="$(./ytscraper $1 | jq -r "map_values(delpaths(keys_unsorted[:-100] | map([.])))" | jq ".videos")"
+TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
+CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
+LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
+echo "${LEFT}" | LIST="${LIST}" fzf --multi --tac --preview 'jq -r -n env.LIST ".[] | .title"'
