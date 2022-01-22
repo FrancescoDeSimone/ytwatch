@@ -3,4 +3,4 @@ LIST="$(./ytscraper $1 | jq -r "map_values(delpaths(keys_unsorted[:-100] | map([
 TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
 CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
 LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
-echo "${LEFT}" | LIST="${LIST}" fzf --multi --tac --preview 'jq -r -n env.LIST ".[] | .title"'
+echo "${LEFT}" | LIST="${LIST}" fzf --multi --tac --preview 'jq -r ".[{n}] | .title, .channel, .url" <<< ${LIST}' --bind 'enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | xargs mpv --playlist=-)'
