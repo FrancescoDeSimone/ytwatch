@@ -1,6 +1,53 @@
 #!/bin/bash
-LIST="$(./ytscraper $1 | jq -r "map_values(delpaths(keys_unsorted[:-100] | map([.])))" | jq ".videos")"
+
+[ ${#} -gt 0 ] \
+        && CSV="${1}" \
+        || CSV=${YTWATCH_SUBSCRIPTIONS_CSV:-$XDG_CONFIG_HOME/ytwatch/subscriptions.csv}
+
+declare -r -x UEBERZUG_FIFO="$(mktemp --dry-run --suffix "fzf-$$-ueberzug")"
+declare -r -x PREVIEW_ID="preview"
+function calculate_position {
+    < <(</dev/tty stty size) \
+        read TERMINAL_LINES TERMINAL_COLUMNS
+        X=$((TERMINAL_COLUMNS - COLUMNS - 2))
+        Y=1
+}
+
+function draw_preview {
+    calculate_position
+    >"${UEBERZUG_FIFO}" declare -A -p cmd=( \
+        [action]=add [identifier]="${PREVIEW_ID}" \
+        [x]="${X}" [y]="${Y}" \
+        [width]="${COLUMNS}" [height]="${LINES}" \
+        [scaler]=forced_cover [scaling_position_x]=0.5 [scaling_position_y]=0.5 \
+        [path]="${@}")
+}
+
+function start_ueberzug {
+    mkfifo "${UEBERZUG_FIFO}"
+    <"${UEBERZUG_FIFO}" \
+        ueberzug layer --parser bash --silent &
+    3>"${UEBERZUG_FIFO}" \
+        exec
+}
+
+SWALLOWER=${YTWATCH_SWALLOWER-devour}
+PLAYER=${YTWATCH_PLAYER:-mpv}
+PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
+
+LIST="$(./ytscraper "${CSV}" | \
+    jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
 TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
 CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
 LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
-echo "${LEFT}" | LIST="${LIST}" fzf --multi --tac --preview 'jq -r ".[{n}] | .title, .channel, .url" <<< ${LIST}' --bind 'enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | xargs mpv --playlist=-)'
+PREVIEW_STRING='jq -r ".[{n}] | .title, .channel, .published, .url" <<< ${LIST}'
+# FIXME
+# PREVIEW_STRING='jq -r ".[{n}] | .url" <<< ${LIST} | draw_preview'
+BIND_STRING='enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | \
+                '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}')'
+
+start_ueberzug
+export -f draw_preview calculate_position
+LIST="${LIST}" fzf --multi --tac \
+     --preview "${PREVIEW_STRING}" \
+     --bind "${BIND_STRING}" <<<"${LEFT}"
