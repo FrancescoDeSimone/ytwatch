@@ -1,0 +1,37 @@
+name: ytwatch appimage
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-appimage:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang make build-essential libgc-dev libfmt-dev
+      - name: Build AppImage
+        run: |
+          ./build_appimage.sh
+      - uses: benjlevesque/short-sha@v1.2
+        id: short-sha
+        with:
+          length: 6
+      - run: echo $SHA
+      - uses: ncipollo/release-action@v1
+        env:
+          SHA: ${{ steps.short-sha.outputs.sha }}
+        with:
+          name: ytwatch.AppImage
+          artifacts: ytwatch.AppImage
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: True
+          tag: ${{ env.SHA }}
+
