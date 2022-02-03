@@ -42,7 +42,9 @@ extract_video(std::string &data, std::string&& regex){
     while (std::regex_search(data, m, e)) {
         std::string title(m[1]);
         title.erase(std::remove(title.begin(), title.end(), '\\'), title.end());
-        results[m[4]] = {title,m[2],m[3],m[4],m[5]};
+        std::string thumbnail(m[5]);
+        thumbnail.replace(8,12,"img.youtube.com");
+        results[m[4]] = {title,m[2],m[3],m[4],thumbnail};
         data = m.suffix().str();
     }
     return results;

@@ -15,8 +15,10 @@ create_appimage(){
 }
 
 compile_ytscraper(){
+    pushd "${HERE}"
     make
-    mv ${HERE}/ytscraper "${APPDIR}/usr/bin"
+    mv "${HERE}/ytscraper" "${APPDIR}/usr/bin"
+    popd
 }
 
 mkdir -p "${APPDIR:?}/usr/bin"
