@@ -49,7 +49,7 @@ calculate_position() {
 }
 
 draw_preview() {
-    IMAGEPATH="/tmp/ytwatch_preview.$(tr -cd 'a-f0-9' < /dev/urandom | head -c 8)"
+    IMAGEPATH="/tmp/ytwatch_tmp_preview"
 
     #FIXME
     while IFS=' ' read -r LINE;do
