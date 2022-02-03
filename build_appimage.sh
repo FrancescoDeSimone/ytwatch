@@ -1,7 +1,8 @@
 #!/bin/bash
 set -xeu
 
-APPDIR="./AppDir"
+HERE="$(dirname "$(readlink -f "${0}")")"
+APPDIR="${HERE}/AppDir"
 
 create_appimage(){
     folder=$(mktemp -d)
@@ -15,7 +16,7 @@ create_appimage(){
 
 compile_ytscraper(){
     make
-    mv ./ytscraper "${APPDIR}/usr/bin"
+    mv ${HERE}/ytscraper "${APPDIR}/usr/bin"
 }
 
 mkdir -p "${APPDIR:?}/usr/bin"
