@@ -40,10 +40,10 @@ Fetch youtube url from your subscription
 
 Ytwatch script use the current env variable
 
-|      ENV                |              DESCRIPTION              |
-|-------------------------|---------------------------------------|
-|YTWATCH_SUBSCRIPTIONS_CSV|CSV subscriptions path                 |
-|YTWATCH_PLAYER           |Video player (mpv default)             |
-|YTWATCH_PLAYER_OPT       |Video player options                   |
-|YTWATCH_SWALLOWER        |Swallow window? (empty string for none)|
-|YTWATCH_SCRAPER          |Ytscraper path (current dir by default)|
+|      ENV                |                     DESCRIPTION                       |
+|-------------------------|-------------------------------------------------------|
+|YTWATCH_SUBSCRIPTIONS_CSV|CSV subscriptions path                                 |
+|YTWATCH_PLAYER           |Video player (mpv default)                             |
+|YTWATCH_PLAYER_OPT       |Video player options                                   |
+|YTWATCH_SWALLOWER        |Swallow program (empty string for none, default devour)|
+|YTWATCH_SCRAPER          |Ytscraper path (current dir by default)                |
