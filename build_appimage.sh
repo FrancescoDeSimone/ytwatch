@@ -13,9 +13,9 @@ create_appimage(){
     rm -rf "$folder"
 }
 
-compile_ytscrape(){
-    make -j "$(nproc)"
-    mv ytscraper "${APPDIR}/usr/bin"
+compile_ytscraper(){
+    make
+    mv ./ytscraper "${APPDIR}/usr/bin"
 }
 
 mkdir -p "${APPDIR:?}/usr/bin"
@@ -40,6 +40,6 @@ EOF
 cp ./ytwatch "${APPDIR}/usr/bin"
 cp ./ytwatch.png "${APPDIR}/icon.png"
 
-compile_ytscrape
+compile_ytscraper
 create_appimage
 rm -rf ${APPDIR}
