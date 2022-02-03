@@ -6,7 +6,7 @@ Fetch youtube url from your subscription
 
  - clone the repo:
 
-  ```git clone https://github.com/FrancescoDeSimone/ytwatch```
+  ```git clone: https://github.com/FrancescoDeSimone/ytwatch```
 
  - compile:
 
@@ -23,5 +23,23 @@ Fetch youtube url from your subscription
    - From the downloaded zip extract the .csv in the subscriptions folder
  - Run the application passing the csv
 
-  ```ytwatch subscription.csv```
+  ```ytwatch [-p]```
 
+# Dependency
+
+* curl
+* fzf
+* ueberzug
+* fmt
+
+# Configuration
+
+Ytwatch script use the current env variable
+
+|      ENV                |              DESCRIPTION              |
+|-------------------------|---------------------------------------|
+|YTWATCH_SUBSCRIPTIONS_CSV|CSV subscriptions path                 |
+|YTWATCH_PLAYER           |Video player (mpv default)             |
+|YTWATCH_PLAYER_OPT       |Video player options                   |
+|YTWATCH_SWALLOWER        |Swallow window? (empty string for none)|
+|YTWATCH_SCRAPER          |Ytscraper path (current dir by default)|
