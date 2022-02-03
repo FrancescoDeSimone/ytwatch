@@ -25,9 +25,9 @@ Fetch youtube url from your subscription
    - Click on "Next step" and then on "Create export"
    - Click on the "Download" button after it appears
    - From the downloaded zip extract the .csv in the subscriptions folder
- - Run the application passing the csv
+ - Run the application passing the csv (or save the csv in the default path ```XDG_CONFIG_HOME/ytwatch/subscriptions.csv```)
 
-  ```ytwatch [-p]```
+  ```ytwatch [-p] subscriptions.csv```
 
 # Dependency
 
