@@ -6,11 +6,15 @@ Fetch youtube url from your subscription
 
  - clone the repo:
 
-  ```git clone: https://github.com/FrancescoDeSimone/ytwatch```
+  ```
+  git clone https://github.com/FrancescoDeSimone/ytwatch
+  ```
 
  - compile:
 
-  ```make -j$(nproc)```
+  ```
+  make -j$(nproc)
+  ```
 
 # USAGE
 
