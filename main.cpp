@@ -9,8 +9,23 @@
 #include <map>
 #include <numeric>
 #include <regex>
+#include <fmt/core.h>
+#include <algorithm>
 
-using Video_t = std::map<std::string,std::string>;
+struct video_data{
+    std::string title;
+    std::string url;
+    std::string channel;
+    std::string published;
+    std::string thumbnail;
+
+    std::string get_json(){
+        return fmt::vformat("{{\"title\":\"{}\",\"url\":\"{}\",\"channel\":\"{}\",\"published\":\"{}\",\"thumbnail\":\"{}\"}}",
+            fmt::make_format_args(title,url,channel,published,thumbnail));
+    }
+};
+
+using Video_t = std::map<std::string,video_data>;
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb,
                             void *userp) {
@@ -25,8 +40,10 @@ extract_video(std::string &data, std::string&& regex){
     std::smatch m;
     std::regex e(regex);
     while (std::regex_search(data, m, e)) {
-      results[m[2]] = m[1];
-      data = m.suffix().str();
+        std::string title(m[1]);
+        title.erase(std::remove(title.begin(), title.end(), '\\'), title.end());
+        results[m[4]] = {title,m[2],m[3],m[4],m[5]};
+        data = m.suffix().str();
     }
     return results;
 }
@@ -56,7 +73,7 @@ download_multiplexing(std::vector<std::string> to_download) {
 
   return extract_video(
           readBuffer,
-          "<entry>(?:.|\n)*?<link.*?href=\"(.*)\".*(?:.|\n)*?<published>(.*)<\/");
+          "<entry>(?:.|\n)*?<title>(.*)<\/(?:.|\n)*?<link.*?href=\"(.*)\".*(?:.|\n)*?<name>(.*)<\/(?:.|\n)*?<published>(.*)<\/(?:.|\n)*?<.*?thumbnail.*?\"(.*?)\"");
 }
 
 template <typename T>
@@ -114,8 +131,12 @@ int main (int argc, char *argv[])
         std::getline(subscription,_);
     }
 
-    for(auto [key,value]:ordered_subscription_list(subscription)){
-        std::cout<<key<<" - "<<value<<"\n";
-    }
+    std::stringstream ss;
+    ss<<"{\"videos\":[";
+    for(auto &[key,value]:ordered_subscription_list(subscription))
+        ss<<value.get_json()<<",";
+    ss.seekp(-1, std::ios_base::end);
+    ss<<"]}"<<std::endl;
+    std::cout<<ss.str();
     return 0;
 }
