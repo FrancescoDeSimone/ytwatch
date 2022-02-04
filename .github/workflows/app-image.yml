@@ -21,7 +21,7 @@ jobs:
           git clone https://github.com/fmtlib/fmt
           cmake fmt && make && sudo mv bin/* /bin
           sudo cp libfmt.a /usr/lib && sudo cp libfmt.a /lib
-          sudo cp fmt/include /usr/include
+          sudo cp -r fmt/include /usr/include
           popd
       - name: Build AppImage
         run: |
