@@ -1,3 +1,0 @@
-#!/bin/sh
-HERE="$(dirname "$(readlink -f "${0}")")"
-YTWATCH_FZF=$HERE/usr/bin/fzf YTWATCH_UEBERZUGPP=$HERE/usr/bin/ueberzug YTWATCH_SCRAPER=$HERE/usr/bin/devour YTWATCH_SCRAPER=$HERE/usr/bin/ytscraper PATH="$HERE/usr/bin:$PATH" ${HERE}/usr/bin/ytwatch
