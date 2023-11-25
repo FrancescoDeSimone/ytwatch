@@ -32,7 +32,7 @@ compile_ueberzug(){
   git clone --depth 1 https://github.com/jstkdng/ueberzugpp.git
   pushd ueberzugpp
   mkdir build && pushd build
-  cmake -DCMAKE_BUILD_TYPE=Release  ..
+  cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_X11=OFF -DENABLE_OPENCV=OFF  ..
   cmake --build .
   mv ueberzug "${APPDIR}/usr/bin"
   popd

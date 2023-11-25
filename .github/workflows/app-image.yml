@@ -16,7 +16,7 @@ jobs:
       - name: install dependencies
         run: |
           sudo apt update --yes
-          sudo apt-get install --yes clang libssl-dev libvips-dev libsixel-dev libchafa-dev libtbb-dev build-essential libcurl4-openssl-dev libfmt-dev
+          sudo apt-get install --yes clang libssl-dev libvips-dev libsixel-dev libchafa-dev libtbb-dev build-essential libcurl4-openssl-dev libfmt-dev libxcb-image0-dev libxcb-image0 libxcb-res0 libxcb-res0-dev libopencv-dev libfuse2 libopencv-videoio-dev libfmt8
       - name: Build AppImage
         run: |
           ./build_appimage.sh
