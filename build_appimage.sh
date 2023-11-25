@@ -27,9 +27,6 @@ compile_devour(){
 }
 
 compile_ueberzug(){
-
-  [  -n "$(uname -a | grep Ubuntu)" ] &&
-    sudo apt-get install libssl-dev libvips-dev libsixel-dev libchafa-dev libtbb-dev
   folder=$(mktemp -d)
   pushd ${folder}
   git clone --depth 1 https://github.com/jstkdng/ueberzugpp.git

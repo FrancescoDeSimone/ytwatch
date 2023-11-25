@@ -1,0 +1,100 @@
+#!/bin/bash
+set -e
+
+#ENVIRONMENT VARIABLES
+CSV=${YTWATCH_SUBSCRIPTIONS_CSV:-$XDG_CONFIG_HOME/ytwatch/subscriptions.csv}
+PLAYER=${YTWATCH_PLAYER:-mpv}
+PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
+[ $(which devour) ] || [ ${YTWATCH_SWALLOWER} ] \
+  && SWALLOWER=${YTWATCH_SWALLOWER:-devour}
+YTSCRAPER=${YTWATCH_SCRAPER:-"./ytscraper"}
+
+UEBERZUGPP=${YTWATCH_UEBERZUGPP:-/usr/local/bin/ueberzugpp}
+FZF=${YTWATCH_FZF:-fzf}
+
+readonly BASH_BINARY="$(which bash)"
+args=$(getopt -l "play-now::help" -o "p::h" -- "$@")
+eval set -- "$args"
+
+LIST="$("${YTSCRAPER}" "${CSV}" | \
+  jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
+
+
+start_mpv(){
+  echo "${LIST}"| jq -r ".[] | .url" | tac | ${SWALLOWER} ${PLAYER} ${PLAYER_OPT}
+}
+
+cleanup_ueberzug() {
+  $UEBERZUGPP cmd -s "$SOCKET" -a exit
+}
+
+calculate_position() {
+    < <(</dev/tty stty size) \
+        read TERMINAL_LINES TERMINAL_COLUMNS
+        X=$((TERMINAL_COLUMNS - COLUMNS - 2))
+        Y=10
+}
+
+trap cleanup_ueberzug HUP INT QUIT TERM EXIT
+start_ueberzug(){
+  case "$(uname -a)" in
+    *Darwin*) UEBERZUG_TMP_DIR="$TMPDIR" ;;
+    *) UEBERZUG_TMP_DIR="/tmp" ;;
+  esac
+
+  UB_PID_FILE="$UEBERZUG_TMP_DIR/.$(uuidgen)"
+  $UEBERZUGPP layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+  UB_PID=$(cat "$UB_PID_FILE")
+  export SOCKET="$UEBERZUG_TMP_DIR"/ueberzugpp-"$UB_PID".socket
+  export UEBERZUGPP="$UEBERZUGPP"
+}
+
+draw_preview() {
+  IMAGEPATH="/tmp/ytwatch_tmp_preview"
+  while IFS=' ' read -r LINE;do
+    INFO=$(grep -o -P "\"\K[^\"]+"<<<"$LINE")
+  done <<< "$@"
+  echo "$INFO"
+  URL=$(echo "$INFO" | tail -n1)
+  curl -ss -o "${IMAGEPATH}" "${URL}"
+  [ -z "$FZF_PREVIEW_COLUMNS" ] && max_width=$(($(tput cols) - 2)) || max_width=$FZF_PREVIEW_COLUMNS
+  [ -z "$FZF_PREVIEW_LINES" ] && max_height=$(($(tput lines) - 2)) || max_height=$FZF_PREVIEW_LINES
+  calculate_position
+  $UEBERZUGPP cmd -s $SOCKET -i fzfpreview -a add -x $X -y $Y --max-width $max_width --max-height $max_height -f ${IMAGEPATH}
+}
+
+export -f draw_preview calculate_position
+start_fzf(){
+  TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
+  CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
+  LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
+
+  PREVIEW_STRING='draw_preview $(jq ".[{n}] | \
+    .title, .channel, .published, .url, .thumbnail" <<< ${LIST})'
+
+  BIND_STRING='enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | \
+    '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}')'
+
+  SHELL="${BASH_BINARY}" LIST="${LIST}" $FZF --multi --tac \
+    --preview "${PREVIEW_STRING}" \
+    --bind "${BIND_STRING}" <<<"${LEFT}"
+  }
+
+  while [ $# -ge 1 ]; do
+    case "$1" in
+      --)
+        start_ueberzug
+        start_fzf
+        exit 0
+        ;;
+      -p|--play-now)
+        start_mpv
+        exit 0
+        ;;
+      -h|--help)
+        echo "${0} [-p|--play-now] [-h|--help]"
+        exit 0
+        ;;
+    esac
+    shift
+  done
