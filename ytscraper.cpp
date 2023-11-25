@@ -20,7 +20,7 @@ struct video_data{
     std::string thumbnail;
 
     std::string get_json(){
-        return fmt::vformat("{{\"title\":\"{}\",\"url\":\"{}\",\"channel\":\"{}\",\"published\":\"{}\",\"thumbnail\":\"{}\"}}",
+        return fmt::vformat(R"({{"title":"{}","url":"{}","channel":"{}","published":"{}","thumbnail":"{}"}})",
             fmt::make_format_args(title,url,channel,published,thumbnail));
     }
 };
@@ -50,15 +50,17 @@ extract_video(std::string &data, std::string&& regex){
     return results;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-escape-sequence"
 Video_t
-download_multiplexing(std::vector<std::string> to_download) {
+download_multiplexing(const std::vector<std::string>& to_download) {
   std::string readBuffer;
   CURLM *multi_handle = curl_multi_init();
   curl_multi_setopt(multi_handle, CURLMOPT_MAX_HOST_CONNECTIONS, (long)1L);
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING,
                     CURLPIPE_HTTP1 & CURLPIPE_MULTIPLEX);
   std::vector<CURL *> easy;
-  for (std::string m : to_download) {
+  for (const std::string& m : to_download) {
     easy.push_back(curl_easy_init());
     curl_easy_setopt(easy.back(), CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(easy.back(), CURLOPT_WRITEDATA, &readBuffer);
@@ -75,15 +77,18 @@ download_multiplexing(std::vector<std::string> to_download) {
 
   return extract_video(
           readBuffer,
-          "<entry>(?:.|\n)*?<title>(.*)<\/(?:.|\n)*?<link.*?href=\"(.*)\".*(?:.|\n)*?<name>(.*)<\/(?:.|\n)*?<published>(.*)<\/(?:.|\n)*?<.*?thumbnail.*?\"(.*?)\"");
+          "<entry>(?:.|\n)*?<title>(.*)<\/(?:.|\n)*?"
+          "<link.*?href=\"(.*)\".*(?:.|\n)*?<name>(.*)"
+          "<\/(?:.|\n)*?<published>(.*)<\/(?:.|\n)*?"
+          "<.*?thumbnail.*?\"(.*?)\"");
 }
 
 template <typename T>
 std::vector<std::vector<T>> split(std::vector<T> list, const unsigned int k) {
 
   std::vector<std::vector<T>> chunks;
-  int part = list.size() / k;
-  for (int i = 0; i < k - 2; i++) {
+  unsigned int part = list.size() / k;
+  for (unsigned int i = 0; i < k - 2; i++) {
     std::vector<T> c = std::vector<T>{(list.begin() + (i * part)),
                                       (list.begin() + ((i + 1) * part))};
     chunks.push_back(c);
@@ -104,19 +109,14 @@ ordered_subscription_list(std::ifstream& subscription){
         to_fetch.push_back("https://www.youtube.com/feeds/videos.xml?channel_id="+id);
     }
 
-    #ifdef DEBUG
-        for(auto x:to_fetch)
-            std::cerr<<x<<std::endl;
-    #endif
-
     unsigned int nthreads = std::thread::hardware_concurrency();
     std::vector<std::future<Video_t>> res;
-    for(auto chunk: split(to_fetch,nthreads))
+    for(const auto& chunk: split(to_fetch,nthreads))
         res.push_back(std::async(download_multiplexing,chunk));
 
     Video_t all_sub;
-    for (int i = 0; i < res.size(); i++) {
-      auto v = res[i].get();
+    for (auto & re : res) {
+      auto v = re.get();
       all_sub.insert(v.begin(), v.end());
     }
 
@@ -126,6 +126,12 @@ ordered_subscription_list(std::ifstream& subscription){
 
 int main (int argc, char *argv[])
 {
+    if(argc <= 1)
+    {
+        std::cerr << "Usage: ytscrape <subscription_file_path>" << std::endl;
+        std::cerr << "  - subscription_file_path: The path to the subscription CSV file." << std::endl;
+        exit(1);
+    }
     std::ifstream subscription(argv[1]);
 
     { //remove header

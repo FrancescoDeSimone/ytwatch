@@ -15,14 +15,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang make build-essential cmake make libgc-dev git libcurl4-gnutls-dev
-          pushd /tmp
-          git clone https://github.com/fmtlib/fmt
-          cmake fmt && make && sudo mv bin/* /bin
-          sudo cp libfmt.a /usr/lib && sudo cp libfmt.a /lib
-          sudo cp -r fmt/include/fmt /usr/local/include/
-          popd
+          sudo apt update --yes
+          sudo apt-get install --yes clang libssl-dev libvips-dev libsixel-dev libchafa-dev libtbb-dev build-essential libcurl4-openssl-dev libfmt-dev
       - name: Build AppImage
         run: |
           ./build_appimage.sh

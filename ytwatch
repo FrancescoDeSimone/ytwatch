@@ -1,45 +1,32 @@
 #!/bin/bash
 set -e
 
-args=$(getopt -l "play-now::help" -o "p::h" -- "$@")
-eval set -- "$args"
-
-readonly BASH_BINARY="$(which bash)"
+#ENVIRONMENT VARIABLES
 CSV=${YTWATCH_SUBSCRIPTIONS_CSV:-$XDG_CONFIG_HOME/ytwatch/subscriptions.csv}
 PLAYER=${YTWATCH_PLAYER:-mpv}
 PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
 [ $(which devour) ] || [ ${YTWATCH_SWALLOWER} ] \
-    && SWALLOWER=${YTWATCH_SWALLOWER-devour}
+  && SWALLOWER=${YTWATCH_SWALLOWER:-devour}
 YTSCRAPER=${YTWATCH_SCRAPER:-"./ytscraper"}
-START_NOW=0
 
-while [ $# -ge 1 ]; do
-    case "$1" in
-        --)
-             shift
-             break
-            ;;
-         -p|--play-now)
-             START_NOW=1
-             shift
-             ;;
-         -h|--help)
-             echo "${0} [-p|--play-now] [-h|--help]"
-             exit 0
-             ;;
-    esac
-    shift
-done
+UEBERZUGPP=${YTWATCH_UEBERZUGPP:-/usr/local/bin/ueberzugpp}
+FZF=${YTWATCH_FZF:-fzf}
 
-[ ${#} -gt 0 ] \
-        && CSV="${1}"
+readonly BASH_BINARY="$(which bash)"
+args=$(getopt -l "play-now::help" -o "p::h" -- "$@")
+eval set -- "$args"
 
 LIST="$("${YTSCRAPER}" "${CSV}" | \
-    jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
+  jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
 
 
-declare -r -x UEBERZUG_FIFO="$(mktemp --dry-run --suffix "fzf-$$-ueberzug")"
-declare -r -x PREVIEW_ID="preview"
+start_mpv(){
+  echo "${LIST}"| jq -r ".[] | .url" | tac | ${SWALLOWER} ${PLAYER} ${PLAYER_OPT}
+}
+
+cleanup_ueberzug() {
+  $UEBERZUGPP cmd -s "$SOCKET" -a exit
+}
 
 calculate_position() {
     < <(</dev/tty stty size) \
@@ -48,57 +35,66 @@ calculate_position() {
         Y=10
 }
 
-draw_preview() {
-    IMAGEPATH="/tmp/ytwatch_tmp_preview"
+trap cleanup_ueberzug HUP INT QUIT TERM EXIT
+start_ueberzug(){
+  case "$(uname -a)" in
+    *Darwin*) UEBERZUG_TMP_DIR="$TMPDIR" ;;
+    *) UEBERZUG_TMP_DIR="/tmp" ;;
+  esac
 
-    #FIXME
-    while IFS=' ' read -r LINE;do
-        INFO=$(grep -o -P "\"\K[^\"]+"<<<"$LINE")
-    done <<< "$@"
-    echo "$INFO"
-    URL=$(echo "$INFO" | tail -n1)
-
-    curl -ss -o "${IMAGEPATH}" "${URL}"
-    calculate_position
-    >"${UEBERZUG_FIFO}" declare -A -p cmd=( \
-        [action]=add [identifier]="${PREVIEW_ID}" \
-        [x]="${X}" [y]="${Y}" \
-        [width]="${COLUMNS}" [height]="${LINES}" \
-        [path]="${IMAGEPATH}")
+  UB_PID_FILE="$UEBERZUG_TMP_DIR/.$(uuidgen)"
+  $UEBERZUGPP layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+  UB_PID=$(cat "$UB_PID_FILE")
+  export SOCKET="$UEBERZUG_TMP_DIR"/ueberzugpp-"$UB_PID".socket
+  export UEBERZUGPP="$UEBERZUGPP"
 }
 
-start_ueberzug() {
-    mkfifo "${UEBERZUG_FIFO}"
-    <"${UEBERZUG_FIFO}" \
-        ueberzug layer --parser bash --silent &
-    3>"${UEBERZUG_FIFO}" \
-        exec
+draw_preview() {
+  IMAGEPATH="/tmp/ytwatch_tmp_preview"
+  while IFS=' ' read -r LINE;do
+    INFO=$(grep -o -P "\"\K[^\"]+"<<<"$LINE")
+  done <<< "$@"
+  echo "$INFO"
+  URL=$(echo "$INFO" | tail -n1)
+  curl -ss -o "${IMAGEPATH}" "${URL}"
+  [ -z "$FZF_PREVIEW_COLUMNS" ] && max_width=$(($(tput cols) - 2)) || max_width=$FZF_PREVIEW_COLUMNS
+  [ -z "$FZF_PREVIEW_LINES" ] && max_height=$(($(tput lines) - 2)) || max_height=$FZF_PREVIEW_LINES
+  calculate_position
+  $UEBERZUGPP cmd -s $SOCKET -i fzfpreview -a add -x $X -y $Y --max-width $max_width --max-height $max_height -f ${IMAGEPATH}
 }
 
 export -f draw_preview calculate_position
+start_fzf(){
+  TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
+  CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
+  LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
 
-start_fzf() {
-    TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
-    CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
-    LEFT="$(paste <(echo "${CHANNEL}") <(echo "${TITLE}"))"
-    PREVIEW_STRING='draw_preview $(jq ".[{n}] | \
-                .title, .channel, .published, .url, .thumbnail" <<< ${LIST})'
-    BIND_STRING='enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | \
-                    '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}')'
+  PREVIEW_STRING='draw_preview $(jq ".[{n}] | \
+    .title, .channel, .published, .url, .thumbnail" <<< ${LIST})'
 
-    start_ueberzug
-    SHELL="${BASH_BINARY}" LIST="${LIST}" fzf --multi --tac \
-         --preview "${PREVIEW_STRING}" \
-         --bind "${BIND_STRING}" <<<"${LEFT}"
-}
+  BIND_STRING='enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | \
+    '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}')'
 
-start_mpv(){
-    echo "${LIST}"| jq -r ".[] | .url" | tac | devour mpv --playlist=-
-}
+  SHELL="${BASH_BINARY}" LIST="${LIST}" $FZF --multi --tac \
+    --preview "${PREVIEW_STRING}" \
+    --bind "${BIND_STRING}" <<<"${LEFT}"
+  }
 
-if [ "${START_NOW}" -eq 1 ];then
-    start_mpv
-else
-    start_fzf
-fi
-
+  while [ $# -ge 1 ]; do
+    case "$1" in
+      --)
+        start_ueberzug
+        start_fzf
+        exit 0
+        ;;
+      -p|--play-now)
+        start_mpv
+        exit 0
+        ;;
+      -h|--help)
+        echo "${0} [-p|--play-now] [-h|--help]"
+        exit 0
+        ;;
+    esac
+    shift
+  done
