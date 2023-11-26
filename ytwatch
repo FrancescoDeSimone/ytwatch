@@ -8,7 +8,6 @@ PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
 [ $(which devour) ] || [ ${YTWATCH_SWALLOWER} ] \
   && SWALLOWER=${YTWATCH_SWALLOWER:-devour}
 YTSCRAPER=${YTWATCH_SCRAPER:-"./ytscraper"}
-
 UEBERZUGPP=${YTWATCH_UEBERZUGPP:-/usr/local/bin/ueberzugpp}
 FZF=${YTWATCH_FZF:-fzf}
 
@@ -16,9 +15,13 @@ readonly BASH_BINARY="$(which bash)"
 args=$(getopt -l "play-now::help" -o "p::h" -- "$@")
 eval set -- "$args"
 
-LIST="$("${YTSCRAPER}" "${CSV}" | \
-  jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
-
+if [ "${@: -1}" == "--" ]; then
+  LIST="$("${YTSCRAPER}" "${CSV}" | \
+    jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
+else
+  LIST="$("${YTSCRAPER}" "${CSV}" | \
+    jq -r '.videos | map(select(.channel | test("'"${@: -1}"'";"i")))')"
+fi
 
 start_mpv(){
   echo "${LIST}"| jq -r ".[] | .url" | tac | ${SWALLOWER} ${PLAYER} ${PLAYER_OPT}
@@ -73,28 +76,28 @@ start_fzf(){
     .title, .channel, .published, .url, .thumbnail" <<< ${LIST})'
 
   BIND_STRING='enter:execute(jq -r ".[{n}] | .url" <<< ${LIST} | \
-    '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}')'
+                '${SWALLOWER}' '${PLAYER}' '${PLAYER_OPT}' )'
 
   SHELL="${BASH_BINARY}" LIST="${LIST}" $FZF --multi --tac \
     --preview "${PREVIEW_STRING}" \
     --bind "${BIND_STRING}" <<<"${LEFT}"
-  }
+}
 
-  while [ $# -ge 1 ]; do
-    case "$1" in
-      --)
-        start_ueberzug
-        start_fzf
-        exit 0
-        ;;
-      -p|--play-now)
-        start_mpv
-        exit 0
-        ;;
-      -h|--help)
-        echo "${0} [-p|--play-now] [-h|--help]"
-        exit 0
-        ;;
-    esac
-    shift
-  done
+while [ $# -ge 1 ]; do
+  case "$1" in
+    --)
+      start_ueberzug
+      start_fzf
+      exit 0
+      ;;
+    -p|--play-now)
+      start_mpv
+      exit 0
+      ;;
+    -h|--help)
+      echo "${0} [-p|--play-now] [-h|--help]"
+      exit 0
+      ;;
+  esac
+  shift
+done

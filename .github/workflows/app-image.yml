@@ -22,7 +22,7 @@ jobs:
           sudo apt-get install --yes libxcb-image0-dev libxcb-image0
           sudo apt-get install --yes libxcb-res0 libxcb-res0-dev
           sudo apt-get install --yes libopencv-dev libfuse2
-          sudo apt-get install --yes libopencv-videoio-dev libfmt9
+          sudo apt-get install --yes libopencv-videoio-dev libfmt8
       - name: Build AppImage
         run: |
           ./build_appimage.sh
