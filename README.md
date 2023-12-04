@@ -60,3 +60,8 @@ Ytwatch script use the current env variable
 |YTWATCH_SCRAPER|Ytscraper path|	"./ytscraper"
 |YTWATCH_UEBERZUGPP|Path to UeberzugPP binary|	/usr/local/bin/ueberzugpp
 |YTWATCH_FZF|Path to FZF binary|	fzf
+
+<details>
+  <summary>Preview</summary>
+    <IMG src="asserts/preview.png"  alt="asserts/preview.png"/>
+</details>

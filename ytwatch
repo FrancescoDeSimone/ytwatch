@@ -5,7 +5,7 @@ set -e
 CSV=${YTWATCH_SUBSCRIPTIONS_CSV:-$XDG_CONFIG_HOME/ytwatch/subscriptions.csv}
 PLAYER=${YTWATCH_PLAYER:-mpv}
 PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
-[ $(which devour) ] || [ ${YTWATCH_SWALLOWER} ] \
+[ "$(which devour)" ] || [ "${YTWATCH_SWALLOWER}" ] \
   && SWALLOWER=${YTWATCH_SWALLOWER:-devour}
 YTSCRAPER=${YTWATCH_SCRAPER:-"./ytscraper"}
 UEBERZUGPP=${YTWATCH_UEBERZUGPP:-/usr/local/bin/ueberzugpp}
@@ -15,16 +15,16 @@ readonly BASH_BINARY="$(which bash)"
 args=$(getopt -l "play-now::help" -o "p::h" -- "$@")
 eval set -- "$args"
 
-if [ "${@: -1}" == "--" ]; then
+if [ "${*: -1}" == "--" ]; then
   LIST="$("${YTSCRAPER}" "${CSV}" | \
     jq -r "map_values(delpaths(keys_unsorted[:-400] | map([.])))" | jq ".videos")"
 else
   LIST="$("${YTSCRAPER}" "${CSV}" | \
-    jq -r '.videos | map(select(.channel | test("'"${@: -1}"'";"i")))')"
+    jq -r '.videos | map(select(.channel | test("'"${*: -1}"'";"i")))')"
 fi
 
 start_mpv(){
-  echo "${LIST}"| jq -r ".[] | .url" | tac | ${SWALLOWER} ${PLAYER} ${PLAYER_OPT}
+  echo "${LIST}"| jq -r ".[] | .url" | tac | ${SWALLOWER} "${PLAYER}" "${PLAYER_OPT}"
 }
 
 cleanup_ueberzug() {
@@ -35,7 +35,7 @@ calculate_position() {
     < <(</dev/tty stty size) \
         read TERMINAL_LINES TERMINAL_COLUMNS
         X=$((TERMINAL_COLUMNS - COLUMNS - 2))
-        Y=10
+        Y=11
 }
 
 trap cleanup_ueberzug HUP INT QUIT TERM EXIT
@@ -52,21 +52,26 @@ start_ueberzug(){
   export UEBERZUGPP="$UEBERZUGPP"
 }
 
+get_time(){
+  yt-dlp --print "%(duration>%H:%M:%S)s" "$(echo "${INFO}" |sed '7q;d')"
+}
+
 draw_preview() {
   IMAGEPATH="/tmp/ytwatch_tmp_preview"
   while IFS=' ' read -r LINE;do
     INFO=$(grep -o -P "\"\K[^\"]+"<<<"$LINE")
   done <<< "$@"
   echo "$INFO"
+  get_time "${INFO}" &
   URL=$(echo "$INFO" | tail -n1)
   curl -ss -o "${IMAGEPATH}" "${URL}"
   [ -z "$FZF_PREVIEW_COLUMNS" ] && max_width=$(($(tput cols) - 2)) || max_width=$FZF_PREVIEW_COLUMNS
   [ -z "$FZF_PREVIEW_LINES" ] && max_height=$(($(tput lines) - 2)) || max_height=$FZF_PREVIEW_LINES
   calculate_position
-  $UEBERZUGPP cmd -s $SOCKET -i fzfpreview -a add -x $X -y $Y --max-width $max_width --max-height $max_height -f ${IMAGEPATH}
+  $UEBERZUGPP cmd -s "${SOCKET}" -i fzfpreview -a add -x $X -y $Y --max-width "${max_width}" --max-height "${max_height}" -f "${IMAGEPATH}"
 }
 
-export -f draw_preview calculate_position
+export -f draw_preview calculate_position get_time
 start_fzf(){
   TITLE="$(echo "${LIST}" | jq -r ".[] | .title")"
   CHANNEL="$(echo "${LIST}" | jq -r ".[] | .channel")"
