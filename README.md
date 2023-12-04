@@ -63,5 +63,5 @@ Ytwatch script use the current env variable
 
 <details>
   <summary>Preview</summary>
-    <IMG src="asserts/preview.png"  alt="asserts/preview.png"/>
+    <IMG src="assets/preview.png"  alt="assets/preview.png"/>
 </details>
