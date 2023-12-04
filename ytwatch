@@ -4,7 +4,7 @@ set -e
 #ENVIRONMENT VARIABLES
 CSV=${YTWATCH_SUBSCRIPTIONS_CSV:-$XDG_CONFIG_HOME/ytwatch/subscriptions.csv}
 PLAYER=${YTWATCH_PLAYER:-mpv}
-PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=-"}
+PLAYER_OPT=${YTWATCH_PLAYER_OPT:-"--playlist=- --save-position-on-quit ${XDG_CONFIG_HOME}/ytwatch/.watchtime"}
 [ "$(which devour)" ] || [ "${YTWATCH_SWALLOWER}" ] \
   && SWALLOWER=${YTWATCH_SWALLOWER:-devour}
 YTSCRAPER=${YTWATCH_SCRAPER:-"./ytscraper"}
@@ -53,7 +53,7 @@ start_ueberzug(){
 }
 
 get_time(){
-  yt-dlp --print "%(duration>%H:%M:%S)s" "$(echo "${INFO}" |sed '7q;d')"
+  yt-dlp --print "%(duration>%H:%M:%S)s" "$(echo "${1}" |sed '7q;d')"
 }
 
 draw_preview() {
